@@ -83,7 +83,7 @@ void nrf_802154_received_raw(uint8_t *data, int8_t power, uint8_t lqi)
 
 	nrf_802154_buffer_free_raw(data);
 
-	if (k_msgq_buffer_put(&rx_msgq, &frame, K_NO_WAIT) == 0) {
+	if (k_msgq_put(&rx_msgq, &frame, K_NO_WAIT) == 0) {
 		LOG_DBG("Added message to the queue");
 	} else {
 		LOG_WRN("Msg queue is full");

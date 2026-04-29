@@ -79,7 +79,7 @@ void nrf_802154_received_raw(uint8_t *data, int8_t power, uint8_t lqi)
 	frame->len = pdsu_len;
 	frame->rssi = power;
 	frame->lqi = lqi;
-	memcpy(frame->data, data[1], pdsu_len);
+	memcpy(frame->data, data + 1, pdsu_len);
 
 	nrf_802154_buffer_free_raw(data);
 
@@ -94,18 +94,19 @@ int radio_154_init(void)
 {
 	
 	struct net_if *iface;
-	ret = net_promisc_mode_on(iface);
+	// int ret;
+	// ret = net_promisc_mode_on(iface);
 
-	if (ret < 0) {
-		if (ret == -EALREADY) {
-			LOG_ERR("Promiscuous mode already enabld");
-		} else {
-			LOG_ERR("Cannot set promiscuous mode for interface %p (%d)\n", iface, ret);
-		}
-		return -ENOEXEC;
-	}
+	// if (ret < 0) {
+	// 	if (ret == -EALREADY) {
+	// 		LOG_ERR("Promiscuous mode already enabld");
+	// 	} else {
+	// 		LOG_ERR("Cannot set promiscuous mode for interface %p (%d)\n", iface, ret);
+	// 	}
+	// 	return -ENOEXEC;
+	// }
 
-	/pkt = net_promisc_mode_wait_data(K_FOREVER);
+	// pkt = net_promisc_mode_wait_data(K_FOREVER);
 	
 	nrf_802154_channel_set(CONFIG_BRIDGE_15_4_CHANNEL);
 	nrf_802154_auto_ack_set(true);
@@ -119,10 +120,10 @@ int radio_154_init(void)
 	nrf_802154_pan_id_set(pan_id);
 
 	
-	// uint8_t extended_addr[8] = {
-	// 	0x50, 0xbe, 0xca, 0xc3, 0x3c, 0x36, 0xce, 0xf4,
-	// };
-	// nrf_802154_extended_address_set(extended_addr);
+	uint8_t extended_addr[8] = {
+		0x50, 0xbe, 0xca, 0xc3, 0x3c, 0x36, 0xce, 0xf4,
+	};
+	nrf_802154_extended_address_set(extended_addr);
 
 	if (nrf_802154_receive()) {
 		LOG_INF("radio entered rx state");
@@ -154,14 +155,14 @@ int transmit_802_15_4(const struct bridge_frame *pkt)
 	//uint8_t dst_short_addr[] = {0x12, 0x34}; 
 	
 	const nrf_802154_transmit_metadata_t metadata = {
-		.frame_props = nrf_802154_TRANSMITTED_FRAME_PROPS_DEFAULT_INIT,
+		.frame_props = NRF_802154_TRANSMITTED_FRAME_PROPS_DEFAULT_INIT,
 		.cca = true
 	};
 
 	//send packet
 	while(1){
 		int err;
-		err = nrf_802154_transmitted_raw(pkt, &metadata);
+		nrf_802154_transmitted_raw(pkt->data, &metadata);
 
 		if(err){
 			LOG_ERR("driver could not schedule the transmission procedure. Reason Ox%x", err);

@@ -65,13 +65,48 @@ void nrf_802154_received_raw(uint8_t *data, int8_t power, uint8_t lqi)
 	 *
 	 * Until populated, just release the driver buffer so RX doesn't stall.
 	 */
-	ARG_UNUSED(power);
-	ARG_UNUSED(lqi);
+	 
+	uint8_t pdsu_len = data[0];
+	if (pdsu_len == 0 || pdsu_len > BRIDGE_FRAME_MAX_LEN) {
+		return;
+	}
+
+	struct bridge_frame * frame;
+	if (k_mem_slab_alloc(&rx_slab, &frame, K_NO_WAIT) != 0) {
+		return;
+	}
+
+	frame->len = pdsu_len;
+	frame->rssi = power;
+	frame->lqi = lqi;
+	memcpy(frame->data, data[1], pdsu_len);
+
 	nrf_802154_buffer_free_raw(data);
+
+	if (k_msgq_buffer_put(&rx_msgq, &frame, K_NO_WAIT) == 0) {
+		LOG_DBG("Added message to the queue");
+	} else {
+		LOG_WRN("Msg queue is full");
+	}
 }
 
 int radio_154_init(void)
 {
+	
+	struct net_if *iface;
+	ret = net_promisc_mode_on(iface);
+
+	if (ret < 0) {
+		if (ret == -EALREADY) {
+			LOG_ERR("Promiscuous mode already enabld");
+		} else {
+			LOG_ERR("Cannot set promiscuous mode for interface %p (%d)\n", iface, ret);
+		}
+		return -ENOEXEC;
+	}
+
+	/pkt = net_promisc_mode_wait_data(K_FOREVER);
+	
 	nrf_802154_channel_set(CONFIG_BRIDGE_15_4_CHANNEL);
 	nrf_802154_auto_ack_set(true);
 	LOG_DBG("channel: %u", nrf_802154_channel_get());
@@ -84,10 +119,10 @@ int radio_154_init(void)
 	nrf_802154_pan_id_set(pan_id);
 
 	
-	uint8_t extended_addr[8] = {
-		0x50, 0xbe, 0xca, 0xc3, 0x3c, 0x36, 0xce, 0xf4,
-	};
-	nrf_802154_extended_address_set(extended_addr);
+	// uint8_t extended_addr[8] = {
+	// 	0x50, 0xbe, 0xca, 0xc3, 0x3c, 0x36, 0xce, 0xf4,
+	// };
+	// nrf_802154_extended_address_set(extended_addr);
 
 	if (nrf_802154_receive()) {
 		LOG_INF("radio entered rx state");
@@ -97,10 +132,47 @@ int radio_154_init(void)
 	return -EIO;
 }
 
+// callback fn for successful tx
+void nrf_802154_transmitted_raw(uint8_t *p_frame,
+	const nrf_802154_transmit_done_metadata_t *p_metadata) {
+	LOG_INF("frame was transmitted!");
+}
+
 int transmit_802_15_4(const struct bridge_frame *pkt)
 {
-	ARG_UNUSED(pkt);
-	return -ENOSYS;
+	nrf_802154_channel_set(23u); //edited! change back to 23
+	LOG_DBG("channel: %u", nrf_802154_channel_get());
+
+	// set the pan_id (2 bytes, little-endian)
+	uint8_t src_pan_id[] = {0xbb, 0xbb};;
+	nrf_802154_pan_id_set(src_pan_id);
+
+	// set the extended address (8 bytes, little-endian)
+	uint8_t src_extended_addr[] = {0xdc, 0xa9, 0x35, 0x7b, 0x73, 0x36, 0xce, 0xf4};
+
+ 	uint8_t dst_extended_addr[] = {0x50, 0xbe, 0xca, 0xc3, 0x3c, 0x22, 0x11, 0x00}; //edited!
+	//uint8_t dst_short_addr[] = {0x12, 0x34}; 
+	
+	const nrf_802154_transmit_metadata_t metadata = {
+		.frame_props = nrf_802154_TRANSMITTED_FRAME_PROPS_DEFAULT_INIT,
+		.cca = true
+	};
+
+	//send packet
+	while(1){
+		int err;
+		err = nrf_802154_transmitted_raw(pkt, &metadata);
+
+		if(err){
+			LOG_ERR("driver could not schedule the transmission procedure. Reason Ox%x", err);
+            printk("Reason Ox%x", err);
+		}
+		// sleep for 1 seconds
+		k_sleep(K_MSEC(1000));
+	}
+	return 0;
+	//ARG_UNUSED(pkt);
+	//return -ENOSYS;
 }
 
 int receive_802_15_4(struct bridge_frame *pkt, k_timeout_t timeout)
@@ -115,9 +187,21 @@ int receive_802_15_4(struct bridge_frame *pkt, k_timeout_t timeout)
 	 *   4. k_mem_slab_free(&rx_slab, frame).
 	 *   5. return 0.
 	 */
-	ARG_UNUSED(pkt);
-	ARG_UNUSED(timeout);
-	return -ENOSYS;
+	if (pkt == NULL) {
+		return -EINVAL;
+	}
+
+	// get msg from q
+	struct bridge_frame * frame;
+	if(k_msgq_get(&rx_msgq, &frame, timeout) != 0) {
+		return -EAGAIN;
+	}
+
+	// copy packet and free
+	memcpy(pkt, frame, sizeof(*pkt));
+	k_mem_slab_free(&rx_slab, frame);
+	
+	return 0;
 }
 
 unsigned int radio_154_rx_pending(void)

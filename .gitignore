@@ -1,5 +1,6 @@
 # Build / tooling artifacts
 build/
+build*
 twister-out/
 __pycache__/
 *.pyc

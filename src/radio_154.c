@@ -141,6 +141,12 @@ void nrf_802154_transmitted_raw(uint8_t *p_frame,
 
 int transmit_802_15_4(const struct bridge_frame *pkt)
 {
+	LOG_INF("RECEVIED PACKET OF SHIT %d", pkt->len);
+	for(int i = 0; i < pkt->len; i++) {
+		printk("%02x, ", pkt->data[i]);
+	}
+	printk("\n");
+
 	nrf_802154_channel_set(23u); //edited! change back to 23
 	LOG_DBG("channel: %u", nrf_802154_channel_get());
 
@@ -160,17 +166,14 @@ int transmit_802_15_4(const struct bridge_frame *pkt)
 	};
 
 	//send packet
-	while(1){
-		int err;
-		nrf_802154_transmitted_raw(pkt->data, &metadata);
+	int err;
+	nrf_802154_transmitted_raw(pkt->data, &metadata);
 
-		if(err){
-			LOG_ERR("driver could not schedule the transmission procedure. Reason Ox%x", err);
-            printk("Reason Ox%x", err);
-		}
-		// sleep for 1 seconds
-		k_sleep(K_MSEC(1000));
+	if(err){
+		LOG_ERR("driver could not schedule the transmission procedure. Reason Ox%x", err);
+		printk("Reason Ox%x", err);
 	}
+
 	return 0;
 	//ARG_UNUSED(pkt);
 	//return -ENOSYS;

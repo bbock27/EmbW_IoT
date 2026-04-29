@@ -208,7 +208,7 @@ int tunnel_init(void)
 			receive_thread_fn, NULL, NULL, NULL,
 			K_PRIO_PREEMPT(7), 0, K_NO_WAIT);
 	k_thread_name_set(&recv_thread, "recv-tun");
-	
+
 	return 0;
 }
 
@@ -275,7 +275,11 @@ int receive_tunnel_packet(struct bridge_frame *pkt, k_timeout_t timeout)
 	// populate packet
 	struct tunnel_hdr header;
 	memcpy(&header, buf, sizeof(header));
-	memcpy(pkt, buf + sizeof(header), len - sizeof(header));
+	pkt->len = header.len;
+	pkt->rssi = header.rssi;
+	pkt->lqi = header.lqi;
+	memcpy(pkt->data, buf + sizeof(header), pkt->len);
+
 
 	// transmit packet over 802.15.4
 	return transmit_802_15_4(pkt);

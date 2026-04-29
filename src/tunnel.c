@@ -39,6 +39,7 @@ LOG_MODULE_REGISTER(tunnel, CONFIG_LOG_DEFAULT_LEVEL);
 #define RECONNECT_BACKOFF_MAX_MS  30000
 
 #define CONNECTION_THREAD_STACK   4096
+#define RECV_THREAD_STACK 	      4096
 
 struct __packed tunnel_hdr {
 	uint32_t magic;
@@ -59,6 +60,9 @@ static K_SEM_DEFINE(reconnect_sem, 0, 1);
 
 static K_THREAD_STACK_DEFINE(connection_stack, CONNECTION_THREAD_STACK);
 static struct k_thread connection_thread;
+
+static K_THREAD_STACK_DEFINE(recv_thread_stack, RECV_THREAD_STACK);
+static struct k_thread recv_thread;
 
 static uint16_t tx_seq;              /* only touched by tunnel_packet */
 
@@ -180,6 +184,17 @@ static void connection_thread_fn(void *a, void *b, void *c)
 	}
 }
 
+static void receive_thread_fn(void * a, void * b, void * c) {
+	ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
+
+	while (1) {
+		struct bridge_frame pkt;
+		receive_tunnel_packet(&pkt, K_MSEC(10));
+
+		k_sleep(K_MSEC(100));
+	}
+}
+
 int tunnel_init(void)
 {
 	k_thread_create(&connection_thread, connection_stack,
@@ -187,6 +202,13 @@ int tunnel_init(void)
 			connection_thread_fn, NULL, NULL, NULL,
 			K_PRIO_PREEMPT(7), 0, K_NO_WAIT);
 	k_thread_name_set(&connection_thread, "tunnel-conn");
+
+	k_thread_create(&recv_thread, recv_thread_stack,
+			K_THREAD_STACK_SIZEOF(recv_thread_stack),
+			receive_thread_fn, NULL, NULL, NULL,
+			K_PRIO_PREEMPT(7), 0, K_NO_WAIT);
+	k_thread_name_set(&recv_thread, "recv-tun");
+	
 	return 0;
 }
 
@@ -233,7 +255,28 @@ int tunnel_packet(const struct bridge_frame *pkt)
 
 int receive_tunnel_packet(struct bridge_frame *pkt, k_timeout_t timeout)
 {
-	ARG_UNUSED(pkt);
-	ARG_UNUSED(timeout);
-	return -ENOSYS;
+	// get socket fd
+	int fd;
+	k_mutex_lock(&fd_mutex, K_FOREVER);
+	fd = sock_fd;
+	k_mutex_unlock(&fd_mutex);
+
+	if (fd < 0) {
+		return -ENOTCONN;
+	}
+
+	// recv msg from socket
+	uint8_t buf[sizeof(struct tunnel_hdr) + BRIDGE_FRAME_MAX_LEN];
+	size_t len = zsock_recv (fd, buf, sizeof(struct tunnel_hdr) + BRIDGE_FRAME_MAX_LEN, 0);
+	if (len <= sizeof(struct tunnel_hdr)) {
+		return -ENOTCONN;
+	}
+
+	// populate packet
+	struct tunnel_hdr header;
+	memcpy(&header, buf, sizeof(header));
+	memcpy(pkt, buf + sizeof(header), len - sizeof(header));
+
+	// transmit packet over 802.15.4
+	return transmit_802_15_4(pkt);
 }

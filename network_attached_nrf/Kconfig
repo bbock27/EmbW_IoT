@@ -1,0 +1,52 @@
+# Application Kconfig for the 802.15.4 <-> WiFi tunnel bridge.
+
+source "Kconfig.zephyr"
+
+menu "Bridge configuration"
+
+config BRIDGE_WIFI_START_STACK_SIZE
+	int "Stack size for the WiFi start thread"
+	default 4096
+	help
+	  Stack for the helper thread that drives wifi_connect() and waits
+	  on DHCP. Ported from the sta/ reference's STA_SAMPLE_START_WIFI_THREAD_STACK_SIZE.
+
+config BRIDGE_RELAY_HOST
+	string "Hostname or IPv4 literal of the relay server"
+	default "relay.example.com"
+	help
+	  The bridge opens an outbound TCP connection here on boot.
+
+config BRIDGE_RELAY_PORT
+	int "TCP port of the relay server"
+	default 47000
+	range 1 65535
+
+config BRIDGE_TUNNEL_ID
+	string "Tunnel identifier shared with the peer bridge"
+	default "default"
+	help
+	  Both bridges in the same logical tunnel must use the same value.
+	  Sent in the HELLO message so the relay can pair them.
+
+config BRIDGE_15_4_CHANNEL
+	int "IEEE 802.15.4 channel"
+	default 25
+	range 11 26
+	help
+	  Pick one that does not overlap with the WiFi channel in use
+	  (15, 20, 25, 26 vs WiFi 1/6/11).
+
+config BRIDGE_15_4_PAN_ID
+	hex "IEEE 802.15.4 PAN ID"
+	default 0xBEEF
+
+config BRIDGE_RX_SLAB_DEPTH
+	int "Depth of the radio RX frame slab"
+	default 16
+	range 4 64
+	help
+	  Number of in-flight 802.15.4 RX frames buffered in radio_154.c
+	  between the driver callback and the radio_to_tunnel_thread.
+
+endmenu

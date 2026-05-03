@@ -29,6 +29,27 @@ config BRIDGE_TUNNEL_ID
 	  Both bridges in the same logical tunnel must use the same value.
 	  Sent in the HELLO message so the relay can pair them.
 
+config BRIDGE_DIRECT_HOST
+	string "IPv4 literal of the peer bridge (direct P2P mode)"
+	default ""
+	help
+	  Leave empty to disable direct P2P; the bridge will only use the relay.
+	  If set to a reachable IPv4 address, the bridge tries direct connection first,
+	  falls back to relay on failure, and periodically re-probes for upgrade.
+
+config BRIDGE_DIRECT_PORT
+	int "TCP port of the peer bridge (direct P2P mode)"
+	default 47001
+	range 1 65535
+
+config BRIDGE_DIRECT_PROBE_PERIOD_S
+	int "Seconds between direct path re-probe attempts (relay-only -> direct upgrade)"
+	default 300
+	range 10 3600
+	help
+	  When operating on relay, periodically attempt to connect directly.
+	  On success, switch the live connection without dropping frames.
+
 config BRIDGE_15_4_CHANNEL
 	int "IEEE 802.15.4 channel"
 	default 25

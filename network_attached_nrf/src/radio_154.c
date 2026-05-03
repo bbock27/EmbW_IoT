@@ -60,7 +60,7 @@ void nrf_802154_received_raw(uint8_t *data, int8_t power, uint8_t lqi)
 	}
 
 	struct bridge_frame * frame;
-	if (k_mem_slab_alloc(&rx_slab, &frame, K_NO_WAIT) != 0) {
+	if (k_mem_slab_alloc(&rx_slab, (void **) &frame, K_NO_WAIT) != 0) {
 		return;
 	}
 

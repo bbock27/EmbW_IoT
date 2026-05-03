@@ -26,3 +26,4 @@ We use four nRF54L15 boards, and two nRF7002 daughter boards.
 ## Reproducibility guide
 * picture of the setup:
 * 
+

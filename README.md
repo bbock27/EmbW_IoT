@@ -25,5 +25,21 @@ We use four nRF54L15 boards, and two nRF7002 daughter boards.
 
 ## Reproducibility guide
 * picture of the setup:
-* 
+* Toolchain installation guide: https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation/install_ncs.html
+#### For the wifi boards
+* Open "network_attached_nrf" as an application.
+* In "network_attached_nrf\prj.conf" set "CONFIG_BRIDGE_RELAY_HOST" to be the ip address of the server hosting the bridge.
+* Build instructions:
+*   Set "Board Target" to nrf54l15dk\nrf54l15\cpuapp"
+*   Add an extra Cmake argument. The argument should be "-DSHIELD=nrf7002eb2"
+* Flash this application to both wifi boards
+#### For the non-wifi boards (802.15.4 connection only)
+* Open "802154_nrf" as an application
+* In the build configuration, set "Board Target" to nrf54l15dk\nrf54l15\cpuapp"
+* Flash this application to both non-wifi boards.
+#### In both applications
+* In both applications, there is a script called "radio_154.c"
+* Look for the line that says "nrf_802154_channel_set(CONFIG_BRIDGE_15_4_CHANNEL)"
+* By default, the channel is "CONFIG_BRIDGE_15_4_CHANNEL", but this can be changed to any applicable 802.15.4 channel
+* The boards that will be communicating over 802.15.4 must have the same channel set in this line, so if changing this channel make sure they match.
 

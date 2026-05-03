@@ -1,15 +1,13 @@
 /*
  * TCP tunnel to the relay server.
  *
- * Step 4: tunnel_init() spawns a connection-management thread that
- * establishes a long-lived TCP socket to BRIDGE_RELAY_HOST:BRIDGE_RELAY_PORT,
+ * Establishes a long-lived TCP socket to BRIDGE_RELAY_HOST:BRIDGE_RELAY_PORT,
  * sends a HELLO carrying BRIDGE_TUNNEL_ID, and reconnects with backoff
- * on failure. tunnel_packet() snapshots the fd under a mutex and writes
- * a single length-prefixed FRAME message; on send failure it marks the
- * fd dead and signals the connection thread to reconnect.
+ * on failure. tunnel_packet() sends FRAME messages; receive_tunnel_packet()
+ * receives them with proper TCP framing (recv_all).
  *
- * receive_tunnel_packet() is still -ENOSYS (step 5).
- *
+ * Supports dual-path: direct P2P when BRIDGE_DIRECT_HOST is configured,
+ * falls back to relay, and periodically re-probes for upgrade.
  * BRIDGE_RELAY_HOST is an IPv4 literal parsed via zsock_inet_pton.
  */
 

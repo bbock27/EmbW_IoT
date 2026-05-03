@@ -51,21 +51,9 @@ SYS_INIT(rf_setup, POST_KERNEL, 90);
 
 void nrf_802154_received_raw(uint8_t *data, int8_t power, uint8_t lqi)
 {
-	/* TODO: populate the RX path.
-	 *
-	 * nrf_802154 hands back PHR + PSDU: data[0] = PSDU length (includes
+	/* nrf_802154 hands back PHR + PSDU: data[0] = PSDU length (includes
 	 * the 2-byte FCS), data[1..1+data[0]] = PSDU bytes.
-	 *
-	 *   1. Read psdu_len = data[0]; drop if 0 or > BRIDGE_FRAME_MAX_LEN.
-	 *   2. k_mem_slab_alloc(&rx_slab, &frame, K_NO_WAIT). On failure, drop.
-	 *   3. frame->len = psdu_len; frame->rssi = power; frame->lqi = lqi;
-	 *      memcpy(frame->data, &data[1], psdu_len).
-	 *   4. nrf_802154_buffer_free_raw(data) so the radio can reuse the buffer.
-	 *   5. k_msgq_put(&rx_msgq, &frame, K_NO_WAIT). If full, k_mem_slab_free.
-	 *
-	 * Until populated, just release the driver buffer so RX doesn't stall.
-	 */
-	 
+	 * Allocate a bridge_frame, populate it, push to rx_msgq. */
 	uint8_t pdsu_len = data[0];
 	if (pdsu_len == 0 || pdsu_len > BRIDGE_FRAME_MAX_LEN) {
 		return;
@@ -92,22 +80,6 @@ void nrf_802154_received_raw(uint8_t *data, int8_t power, uint8_t lqi)
 
 int radio_154_init(void)
 {
-	
-	struct net_if *iface;
-	// int ret;
-	// ret = net_promisc_mode_on(iface);
-
-	// if (ret < 0) {
-	// 	if (ret == -EALREADY) {
-	// 		LOG_ERR("Promiscuous mode already enabld");
-	// 	} else {
-	// 		LOG_ERR("Cannot set promiscuous mode for interface %p (%d)\n", iface, ret);
-	// 	}
-	// 	return -ENOEXEC;
-	// }
-
-	// pkt = net_promisc_mode_wait_data(K_FOREVER);
-	
 	nrf_802154_channel_set(CONFIG_BRIDGE_15_4_CHANNEL);
 	nrf_802154_auto_ack_set(true);
 	LOG_DBG("channel: %u", nrf_802154_channel_get());
@@ -133,64 +105,49 @@ int radio_154_init(void)
 	return -EIO;
 }
 
-// callback fn for successful tx
+static K_SEM_DEFINE(tx_done_sem, 0, 1);
+
 void nrf_802154_transmitted_raw(uint8_t *p_frame,
 	const nrf_802154_transmit_done_metadata_t *p_metadata) {
-	LOG_INF("frame was transmitted!");
+	ARG_UNUSED(p_frame);
+	ARG_UNUSED(p_metadata);
+	k_sem_give(&tx_done_sem);
 }
 
 int transmit_802_15_4(const struct bridge_frame *pkt)
 {
-	LOG_INF("RECEVIED PACKET OF SHIT %d", pkt->len);
-	for(int i = 0; i < pkt->len; i++) {
-		printk("%02x, ", pkt->data[i]);
+	if (!pkt || pkt->len > BRIDGE_FRAME_MAX_LEN) {
+		return -EINVAL;
 	}
-	printk("\n");
 
-	nrf_802154_channel_set(23u); //edited! change back to 23
-	LOG_DBG("channel: %u", nrf_802154_channel_get());
+	/* nrf_802154_transmit_raw expects [PHR][PSDU] where PHR = length of PSDU.
+	 * bridge_frame.len is the PSDU length; construct the TX buffer. */
+	uint8_t tx_buf[1 + BRIDGE_FRAME_MAX_LEN];
+	tx_buf[0] = pkt->len;
+	memcpy(tx_buf + 1, pkt->data, pkt->len);
 
-	// set the pan_id (2 bytes, little-endian)
-	uint8_t src_pan_id[] = {0xbb, 0xbb};;
-	nrf_802154_pan_id_set(src_pan_id);
-
-	// set the extended address (8 bytes, little-endian)
-	uint8_t src_extended_addr[] = {0xdc, 0xa9, 0x35, 0x7b, 0x73, 0x36, 0xce, 0xf4};
-
- 	uint8_t dst_extended_addr[] = {0x50, 0xbe, 0xca, 0xc3, 0x3c, 0x22, 0x11, 0x00}; //edited!
-	//uint8_t dst_short_addr[] = {0x12, 0x34}; 
-	
 	const nrf_802154_transmit_metadata_t metadata = {
 		.frame_props = NRF_802154_TRANSMITTED_FRAME_PROPS_DEFAULT_INIT,
 		.cca = true
 	};
 
-	//send packet
-	int err;
-	nrf_802154_transmitted_raw(pkt->data, &metadata);
+	if (!nrf_802154_transmit_raw(tx_buf, &metadata)) {
+		LOG_ERR("transmit_raw failed (queue full?)");
+		return -EIO;
+	}
 
-	if(err){
-		LOG_ERR("driver could not schedule the transmission procedure. Reason Ox%x", err);
-		printk("Reason Ox%x", err);
+	/* Wait for TX-done callback. Use a 1s timeout to avoid indefinite hang
+	 * if the callback is somehow lost. */
+	if (k_sem_take(&tx_done_sem, K_SECONDS(1)) != 0) {
+		LOG_WRN("transmit_802_15_4: TX-done callback timeout");
+		return -ETIMEDOUT;
 	}
 
 	return 0;
-	//ARG_UNUSED(pkt);
-	//return -ENOSYS;
 }
 
 int receive_802_15_4(struct bridge_frame *pkt, k_timeout_t timeout)
 {
-	/* TODO: populate the consumer side.
-	 *
-	 *   1. Validate pkt is non-NULL (-EINVAL if not).
-	 *   2. struct bridge_frame *frame;
-	 *      ret = k_msgq_get(&rx_msgq, &frame, timeout);
-	 *      -- returns -EAGAIN on timeout when caller passes K_NO_WAIT or K_MSEC.
-	 *   3. memcpy(pkt, frame, sizeof(*pkt)).
-	 *   4. k_mem_slab_free(&rx_slab, frame).
-	 *   5. return 0.
-	 */
 	if (pkt == NULL) {
 		return -EINVAL;
 	}

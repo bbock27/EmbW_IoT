@@ -127,6 +127,6 @@ int bridge_start(void)
 			K_PRIO_PREEMPT(7), 0, K_NO_WAIT);
 	k_thread_name_set(&radio_to_tunnel_thread_data, "radio2tunnel");
 
-	LOG_INF("bridge: radio_to_tunnel_thread up; tunnel_to_radio + dedupe still TODO (step 5)");
+	LOG_INF("bridge: radio_to_tunnel_thread + tunnel_to_radio_thread up");
 	return 0;
 }

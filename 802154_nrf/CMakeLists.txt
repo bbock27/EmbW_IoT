@@ -5,7 +5,5 @@ project(main)
 
 target_sources(app PRIVATE
 	src/main.c
-	src/bridge.c
 	src/radio_154.c
-	src/tunnel.c
 )

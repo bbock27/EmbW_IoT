@@ -81,7 +81,7 @@ void nrf_802154_received_raw(uint8_t *data, int8_t power, uint8_t lqi)
 int radio_154_init(void)
 {
 	nrf_802154_channel_set(CONFIG_BRIDGE_15_4_CHANNEL);
-	nrf_802154_auto_ack_set(true);
+	nrf_802154_auto_ack_set(false);
 	LOG_DBG("channel: %u", nrf_802154_channel_get());
 
 	/* PAN ID, little-endian wire order. */
@@ -91,7 +91,10 @@ int radio_154_init(void)
 	};
 	nrf_802154_pan_id_set(pan_id);
 
-	
+	/* Enable promiscuous mode to capture all frames on the channel,
+	 * regardless of destination address or PAN ID. */
+	nrf_802154_promiscuous_set(true);
+
 	uint8_t extended_addr[8] = {
 		0x50, 0xbe, 0xca, 0xc3, 0x3c, 0x36, 0xce, 0xf4,
 	};

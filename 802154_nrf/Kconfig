@@ -12,15 +12,45 @@ config BRIDGE_WIFI_START_STACK_SIZE
 	  on DHCP. Ported from the sta/ reference's STA_SAMPLE_START_WIFI_THREAD_STACK_SIZE.
 
 config BRIDGE_RELAY_HOST
-	string "Hostname or IPv4 literal of the relay server"
-	default "relay.example.com"
+	string "IPv4 literal of the relay server"
+	default "192.168.2.1"
 	help
 	  The bridge opens an outbound TCP connection here on boot.
+	  Must be a dotted-quad IPv4 address; hostname resolution is
+	  intentionally not supported.
 
 config BRIDGE_RELAY_PORT
 	int "TCP port of the relay server"
 	default 47000
 	range 1 65535
+
+config BRIDGE_DIRECT_HOST
+	string "Optional IPv4 literal of the peer's direct (port-forwarded) address"
+	default ""
+	help
+	  When non-empty, the bridge tries to connect here first on every
+	  reconnect, falling back to BRIDGE_RELAY_HOST if the direct dial
+	  fails. Empty means relay-only (the original behavior).
+
+	  Use when one peer has a static public IP plus port-forwarding
+	  pointing at the listener-mode bridge on the other side.
+
+config BRIDGE_DIRECT_PORT
+	int "TCP port of the peer's direct address"
+	default 47000
+	range 1 65535
+	help
+	  Only consulted when BRIDGE_DIRECT_HOST is non-empty.
+
+config BRIDGE_DIRECT_PROBE_PERIOD_S
+	int "Re-probe period for direct path while on relay (seconds)"
+	default 300
+	range 30 3600
+	help
+	  While the tunnel is running on relay, retry the direct path this
+	  often. On a successful direct connect the relay socket is closed
+	  and traffic switches over. Only consulted when BRIDGE_DIRECT_HOST
+	  is non-empty.
 
 config BRIDGE_TUNNEL_ID
 	string "Tunnel identifier shared with the peer bridge"

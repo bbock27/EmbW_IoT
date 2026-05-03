@@ -1,0 +1,6 @@
+{
+    "cmake.sourceDirectory": "C:/Users/toris/Documents/EmbW_IoT/802154_nrf",
+    "nrf-connect.applications": [
+        "${workspaceFolder}\\network_attached_nrf"
+    ]
+}

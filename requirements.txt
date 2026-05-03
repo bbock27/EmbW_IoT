@@ -1,0 +1,107 @@
+EmbWIoT - Spring 2026 
+Final Logistics and Deliverables 
+ 
+Final 
+1.	Logistics and session plan 
+a.	Date and time: Sunday, May 5th, 6:00–9:00 pm 
+b.	Location: Gilman 132 
+c.	Attendance: Everyone is expected to attend in person. Contact the instructor in advance for special requests or accommodations. 
+d.	Guests: Students may invite friends to the demo session. 
+e.	Format: Real-time demo of your project. Be prepared to explain the idea, problem addressed, design choices, and results. 
+2.	Room setup and resources 
+a.	Room layout: Clusters/stations per group around the room perimeter to allow circulation. 
+b.	Power and connectivity: 
+i.	Request power strips and extension cords as needed (provide counts in advance). 
+ii.	Verify Wi-Fi access requirements; request temporary access points or hotspot allowances if needed. Have an offline fallback. 
+c.	Noise/RF considerations: 
+i.	If multiple groups use the same band (e.g., BLE/Wi-Fi/802.15.4), plan channel assignments to minimize interference. Have a backup channel plan. 
+d.	Check-in and prep: 
+i.	Arrive by 5:45 pm for setup and quick tech checks (power, firmware, network). 
+ii.	A 10–15 minute instructor walk-through at 6:00 pm to verify readiness. e. Rotation plan: 
+i.	Members from every group should rotate to visit other groups. Ensure everyone can independently run and explain the demo. 
+ii.	Suggested rotation: around 5 minutes per demo (we have a total of 13 groups, try to go through each one); swap roles so that at least one member present at the station at all times while others visit. 
+f. Contingency: 
+i.	Posters and demo videos are helpful but not required. Bring a short offline video (1–2 minutes) as a fallback if wireless conditions fail. 
+ii.	Prepare pre-recorded data traces and screenshots to demonstrate functionality if live sensing/links degrade. 
+3.	Content expectations for live demo 
+a.	Explain: 
+i.	The idea/problem/use-case and why it matters. 
+ii.	System architecture: hardware, firmware, wireless link, and any cloud/backend components. 
+iii.	Key design choices (protocols, MCU, sensor selection, power budget). 
+iv.	Performance: latency, throughput, range, energy, reliability; measurement methodology. 
+v.	Limitations and future work. 
+b.	Show: 
+i.	Real-time operation under representative conditions. 
+ii.	A brief robustness test: how it behaves with interference, movement, or power cycling. iii. A brief power/energy demo or estimate (e.g., current draw at idle/active), if applicable. 
+4.	What to bring 
+a.	Hardware: final prototype(s), spare units if available. 
+b.	Cables, chargers, power strips, batteries, and a safe battery case. 
+c.	Laptops with toolchains, terminal/flash tools, and necessary drivers pre-installed. 
+d.	Adapters/dongles, debug tools. 
+e.	Labels and quick reference cards describing your station (project title, team, wireless tech, key metrics). 
+5.	Communication to instructor (needs/requests) 
+a.	By May 2, 5:00 pm, email: 
+i.	Power strip count and outlet needs. 
+ii.	Poster stand. iii. RF/environment needs (quiet RF corner, ethernet drop). 
+iv. Accessibility or special scheduling requests. 
+ 
+Deliverables 
+1.	Code repository 
+a.	Put your links in: https://livejohnshopkinsmy.sharepoint.com/:x:/g/personal/zou6_jh_edu/IQDC0uWCeaMHQq_hXNH23W
+UsAW-Oj_-
+Wsu_wPGBykiWeR84?e=N7fAWe&nav=MTVfe0U1MUQzQkQ0LUEyODEtNDJE
+OC1BOTI5LUJBMTM1QkRDRjJGNn0 
+b.	Recommended repo structure: 
+i. 	firmware/ ii. host/ or edge/ iii. cloud/ (if applicable) iv. docs/ 
+v.	scripts/ 
+vi.	README.md 
+vii.	intro.md viii. LICENSE (if open-sourcing) ix. Version/lock files as appropriate 
+c.	Access: 
+i.	Ensure the repository is public or accessible to course staff. If private, add instructor/staff accounts. 
+ii.	Include a tag/release (v1.0-final) that corresponds to the demoed version. 
+2.	README.md contents (comprehensive and reproducible) 
+a. Introduction: 
+i.	Problem statement, target application, high-level architecture. 
+ii.	Key features and performance summary (latency, range, energy, etc.). b. Hardware details: 
+i.	Board(s) used and MCU details. 
+ii.	Additional peripherals with model numbers and links. 
+iii.	Hardware modifications: rework, jumpers, custom PCBs, enclosures; include photos and schematics. 
+iv.	Power subsystem: battery type/capacity, regulators, estimated runtime, charging approach. 
+v.	RF specs: bands, antennas, output power, expected range; compliance notes if applicable. 
+c.	Software environment: 
+	i. 	Firmware: 
+1.	IDE/toolchain and exact versions. 
+2.	SDK/RTOS versions, compiler versions. 
+3.	Build system and board configuration. 
+ii. Other software: 
+1.	Language, version, dependencies and lock files. 
+2.	OS compatibility and special drivers. 
+iii.	Programming/debugging tools and versions. 
+iv.	Radio stack/protocol configurations (PHY, channels, data rates). 
+d.	Reproducibility guide (step-by-step): 
+i.	Hardware assembly: wiring diagrams, pin maps, photos. 
+ii.	Environment setup: toolchain installation commands; script or container if possible. 
+iii.	Build instructions for firmware and host software. iv. Flashing and provisioning: programming steps, bootloaders, keys, pairing. v. Running the demo: startup instructions, expected logs, verification steps. 
+vi.	Testing/measurement: how to reproduce key metrics; test scripts; datasets. 
+vii.	Troubleshooting: common issues and fixes. viii. Offline mode instructions if cloud connectivity is unavailable. ix. Security keys/tokens handling (use placeholders and instructions to generate your own). 
+e.	Example reference: 
+i. 	You may use https://github.com/seemoo-lab/uwb-sniffer as an example but provide more detail tailored to your project. 
+3.	intro.md (advertisement-style, in the code repo) 
+a.	Title: concise and descriptive. 
+b.	Introduction (about 100–200 words, flexible): 
+i. 	Application scenario, what you built, why it’s useful, and a highlight of results. 
+c.	One figure: 
+i.	Photo of the hardware setup, application illustration, or system block diagram. 
+ii.	Include the image file in the repo (e.g., docs/figures/setup.jpg) and reference it with a relative path. 
+d.	Optional enhancements: 
+	i. 	A one-line “See it live” tagline or a QR code linking to a short demo video. 
+4.	Submission timing and checkpoints 
+a. Before demo day (by May 4, 11:59 pm): 
+i.	Upload the final link via the online spreadsheet. 
+ii.	Repo published with README.md and intro.md in near-final state. 
+iii.	Tag a v1.0-rc release; confirm build-from-scratch works on a clean machine. 
+b. Day of demo (May 5): 
+i.	Bring hardware and backup media. 
+ii.	Keep a local copy of the repo and installers to avoid network issues. 
+c.	After demo (by May 6, 11:59 pm): 
+i. 	Finalize any README updates based on demo feedback and tag v1.0final. 

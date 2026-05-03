@@ -8,6 +8,8 @@
 
 #include "bridge.h"
 
+#include <string.h>
+
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/atomic.h>
@@ -15,6 +17,54 @@
 LOG_MODULE_REGISTER(bridge, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define RADIO_TO_TUNNEL_STACK_SIZE 3072
+
+#define DEDUPE_RING_DEPTH 8
+#define DEDUPE_TTL_MS     500
+
+struct dedupe_entry {
+	uint32_t timestamp;
+	uint8_t  len;
+	uint8_t  data[BRIDGE_FRAME_MAX_LEN];
+};
+
+static struct dedupe_entry dedupe_ring[DEDUPE_RING_DEPTH];
+static int dedupe_idx;
+static K_MUTEX_DEFINE(dedupe_mutex);
+
+void bridge_dedupe_remember(const uint8_t *data, uint8_t len)
+{
+	if (!data || len == 0 || len > BRIDGE_FRAME_MAX_LEN) {
+		return;
+	}
+	k_mutex_lock(&dedupe_mutex, K_FOREVER);
+	struct dedupe_entry *e = &dedupe_ring[dedupe_idx];
+	e->timestamp = k_uptime_get_32();
+	e->len = len;
+	memcpy(e->data, data, len);
+	dedupe_idx = (dedupe_idx + 1) % DEDUPE_RING_DEPTH;
+	k_mutex_unlock(&dedupe_mutex);
+}
+
+bool bridge_dedupe_seen(const uint8_t *data, uint8_t len)
+{
+	if (!data || len == 0 || len > BRIDGE_FRAME_MAX_LEN) {
+		return false;
+	}
+	bool seen = false;
+	uint32_t now = k_uptime_get_32();
+	k_mutex_lock(&dedupe_mutex, K_FOREVER);
+	for (int i = 0; i < DEDUPE_RING_DEPTH; i++) {
+		const struct dedupe_entry *e = &dedupe_ring[i];
+		if (e->len == len &&
+		    (now - e->timestamp) < DEDUPE_TTL_MS &&
+		    memcmp(e->data, data, len) == 0) {
+			seen = true;
+			break;
+		}
+	}
+	k_mutex_unlock(&dedupe_mutex);
+	return seen;
+}
 
 static atomic_t bridge_started;
 
@@ -33,6 +83,11 @@ static void radio_to_tunnel_thread(void *a, void *b, void *c)
 		if (ret) {
 			LOG_DBG("receive_802_15_4: %d", ret);
 			k_sleep(K_MSEC(100));  /* avoid tight loop on persistent error */
+			continue;
+		}
+
+		if (bridge_dedupe_seen(f.data, f.len)) {
+			LOG_DBG("dedupe: dropping echo (len=%u)", f.len);
 			continue;
 		}
 

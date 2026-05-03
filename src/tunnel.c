@@ -10,8 +10,7 @@
  *
  * receive_tunnel_packet() is still -ENOSYS (step 5).
  *
- * BRIDGE_RELAY_HOST is parsed as an IPv4 literal via zsock_inet_pton.
- * Hostname support would need CONFIG_DNS_RESOLVER and getaddrinfo.
+ * BRIDGE_RELAY_HOST is an IPv4 literal parsed via zsock_inet_pton.
  */
 
 #include "bridge.h"
@@ -84,18 +83,35 @@ static int send_all(int fd, const void *buf, size_t len)
 	return 0;
 }
 
-/* Open + connect + HELLO. Returns the connected fd, or a negative errno. */
-static int do_connect(void)
+/* Read exactly `len` bytes; loops over short reads. Returns 0 or -errno. */
+static int recv_all(int fd, void *buf, size_t len)
+{
+	uint8_t *p = buf;
+	while (len > 0) {
+		int n = zsock_recv(fd, p, len, 0);
+		if (n < 0) {
+			return -errno;
+		}
+		if (n == 0) {
+			return -ECONNRESET;
+		}
+		p += n;
+		len -= n;
+	}
+	return 0;
+}
+
+/* Open + connect + HELLO to (host, port). Returns the connected fd, or a
+ * negative errno. Used for both the direct path and the relay fallback. */
+static int do_dial(const char *host, uint16_t port)
 {
 	struct sockaddr_in addr = {
 		.sin_family = AF_INET,
-		.sin_port = htons(CONFIG_BRIDGE_RELAY_PORT),
+		.sin_port = htons(port),
 	};
 
-	if (zsock_inet_pton(AF_INET, CONFIG_BRIDGE_RELAY_HOST, &addr.sin_addr) != 1) {
-		LOG_ERR("BRIDGE_RELAY_HOST='%s' is not a valid IPv4 literal "
-			"(hostname support needs CONFIG_DNS_RESOLVER + getaddrinfo)",
-			CONFIG_BRIDGE_RELAY_HOST);
+	if (zsock_inet_pton(AF_INET, host, &addr.sin_addr) != 1) {
+		LOG_ERR("'%s' is not a valid IPv4 literal", host);
 		return -EINVAL;
 	}
 
@@ -136,6 +152,11 @@ static int do_connect(void)
 	return fd;
 }
 
+static inline bool direct_configured(void)
+{
+	return CONFIG_BRIDGE_DIRECT_HOST[0] != '\0';
+}
+
 /* Close the fd if it still matches `expected_fd`, and signal a reconnect. */
 static void mark_dead(int expected_fd)
 {
@@ -152,6 +173,39 @@ static void mark_dead(int expected_fd)
 	}
 }
 
+enum tunnel_path { PATH_DIRECT, PATH_RELAY };
+
+static const char *path_name(enum tunnel_path p)
+{
+	return p == PATH_DIRECT ? "direct" : "relay";
+}
+
+/* Try the direct path first if configured, then fall back to relay.
+ * Sets *path_out to whichever succeeded. Returns the connected fd, or
+ * a negative errno if both failed. */
+static int dial_with_fallback(enum tunnel_path *path_out)
+{
+	if (direct_configured()) {
+		LOG_INF("dialing direct %s:%d",
+			CONFIG_BRIDGE_DIRECT_HOST, CONFIG_BRIDGE_DIRECT_PORT);
+		int fd = do_dial(CONFIG_BRIDGE_DIRECT_HOST, CONFIG_BRIDGE_DIRECT_PORT);
+		if (fd >= 0) {
+			*path_out = PATH_DIRECT;
+			return fd;
+		}
+		LOG_INF("direct dial failed: %d, falling back to relay", fd);
+	}
+
+	LOG_INF("dialing relay %s:%d",
+		CONFIG_BRIDGE_RELAY_HOST, CONFIG_BRIDGE_RELAY_PORT);
+	int fd = do_dial(CONFIG_BRIDGE_RELAY_HOST, CONFIG_BRIDGE_RELAY_PORT);
+	if (fd >= 0) {
+		*path_out = PATH_RELAY;
+		return fd;
+	}
+	return fd;
+}
+
 static void connection_thread_fn(void *a, void *b, void *c)
 {
 	ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
@@ -160,10 +214,10 @@ static void connection_thread_fn(void *a, void *b, void *c)
 	uint32_t backoff_ms = RECONNECT_BACKOFF_MIN_MS;
 
 	while (1) {
-		int fd = do_connect();
+		enum tunnel_path active;
+		int fd = dial_with_fallback(&active);
 		if (fd < 0) {
-			LOG_WRN("connect to %s:%d failed: %d, retrying in %u ms",
-				CONFIG_BRIDGE_RELAY_HOST, CONFIG_BRIDGE_RELAY_PORT,
+			LOG_WRN("all dials failed: %d, retrying in %u ms",
 				fd, backoff_ms);
 			k_sleep(K_MSEC(backoff_ms));
 			backoff_ms = MIN(backoff_ms * 2, RECONNECT_BACKOFF_MAX_MS);
@@ -171,27 +225,82 @@ static void connection_thread_fn(void *a, void *b, void *c)
 		}
 
 		backoff_ms = RECONNECT_BACKOFF_MIN_MS;
+		int orphan;
 		k_mutex_lock(&fd_mutex, K_FOREVER);
+		orphan = sock_fd;
 		sock_fd = fd;
 		k_mutex_unlock(&fd_mutex);
-		LOG_INF("tunnel connected to %s:%d (fd=%d, tunnel_id='%s')",
-			CONFIG_BRIDGE_RELAY_HOST, CONFIG_BRIDGE_RELAY_PORT,
-			fd, CONFIG_BRIDGE_TUNNEL_ID);
+		if (orphan >= 0) {
+			/* Inner loop broke with a still-live fd (rare: probe-success
+			 * raced with mark_dead). Close it so it doesn't leak. */
+			zsock_close(orphan);
+		}
+		LOG_INF("tunnel up via %s (fd=%d, tunnel_id='%s')",
+			path_name(active), fd, CONFIG_BRIDGE_TUNNEL_ID);
 
-		/* Block until something marks the connection dead. */
-		k_sem_take(&reconnect_sem, K_FOREVER);
-		LOG_INF("tunnel: reconnecting");
+		/* Inner loop: while the current connection is alive, either wait
+		 * forever (on direct, or on relay with no direct configured) or
+		 * wake periodically to re-probe direct. */
+		while (1) {
+			k_timeout_t wait = K_FOREVER;
+			if (active == PATH_RELAY && direct_configured()) {
+				wait = K_SECONDS(CONFIG_BRIDGE_DIRECT_PROBE_PERIOD_S);
+			}
+
+			if (k_sem_take(&reconnect_sem, wait) == 0) {
+				/* Connection died (mark_dead signalled). Re-dial from
+				 * scratch -- direct first, then relay. */
+				LOG_INF("tunnel: %s path dropped, reconnecting",
+					path_name(active));
+				break;
+			}
+
+			/* Timeout fired: we're on relay, try a direct probe. If it
+			 * connects + HELLO, swap fds and continue on direct. */
+			LOG_DBG("re-probing direct path");
+			int probe_fd = do_dial(CONFIG_BRIDGE_DIRECT_HOST,
+					       CONFIG_BRIDGE_DIRECT_PORT);
+			if (probe_fd < 0) {
+				LOG_DBG("direct re-probe failed: %d", probe_fd);
+				continue;
+			}
+
+			LOG_INF("direct path is up; switching from relay");
+			int old_fd;
+			k_mutex_lock(&fd_mutex, K_FOREVER);
+			old_fd = sock_fd;
+			sock_fd = probe_fd;
+			k_mutex_unlock(&fd_mutex);
+			if (old_fd >= 0) {
+				zsock_close(old_fd);
+			}
+			active = PATH_DIRECT;
+		}
 	}
 }
 
 static void receive_thread_fn(void * a, void * b, void * c) {
 	ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
 
+	LOG_INF("tunnel_to_radio_thread started");
 	while (1) {
 		struct bridge_frame pkt;
-		receive_tunnel_packet(&pkt, K_MSEC(10));
+		int ret = receive_tunnel_packet(&pkt, K_FOREVER);
+		if (ret) {
+			/* -ENOTCONN / -EPROTO / -ECONNRESET: connection thread will
+			 * reconnect; back off briefly to avoid spinning. */
+			k_sleep(K_MSEC(100));
+			continue;
+		}
 
-		k_sleep(K_MSEC(100));
+		/* Record before TX so the radio echo / peer rebroadcast can be
+		 * suppressed even if it arrives before transmit_802_15_4 returns. */
+		bridge_dedupe_remember(pkt.data, pkt.len);
+
+		ret = transmit_802_15_4(&pkt);
+		if (ret) {
+			LOG_DBG("transmit_802_15_4: %d (frame dropped)", ret);
+		}
 	}
 }
 
@@ -255,32 +364,64 @@ int tunnel_packet(const struct bridge_frame *pkt)
 
 int receive_tunnel_packet(struct bridge_frame *pkt, k_timeout_t timeout)
 {
-	// get socket fd
+	ARG_UNUSED(timeout);
+
+	if (!pkt) {
+		return -EINVAL;
+	}
+
 	int fd;
 	k_mutex_lock(&fd_mutex, K_FOREVER);
 	fd = sock_fd;
 	k_mutex_unlock(&fd_mutex);
-
 	if (fd < 0) {
 		return -ENOTCONN;
 	}
 
-	// recv msg from socket
-	uint8_t buf[sizeof(struct tunnel_hdr) + BRIDGE_FRAME_MAX_LEN];
-	size_t len = zsock_recv (fd, buf, sizeof(struct tunnel_hdr) + BRIDGE_FRAME_MAX_LEN, 0);
-	if (len <= sizeof(struct tunnel_hdr)) {
-		return -ENOTCONN;
+	struct tunnel_hdr hdr;
+	int ret = recv_all(fd, &hdr, sizeof(hdr));
+	if (ret < 0) {
+		LOG_DBG("recv hdr failed: %d, marking fd dead", ret);
+		mark_dead(fd);
+		return ret;
 	}
 
-	// populate packet
-	struct tunnel_hdr header;
-	memcpy(&header, buf, sizeof(header));
-	pkt->len = header.len;
-	pkt->rssi = header.rssi;
-	pkt->lqi = header.lqi;
-	memcpy(pkt->data, buf + sizeof(header), pkt->len);
+	if (hdr.magic != TUNNEL_MAGIC || hdr.version != TUNNEL_VERSION) {
+		LOG_WRN("bad header magic=%#x ver=%u, closing", hdr.magic, hdr.version);
+		mark_dead(fd);
+		return -EPROTO;
+	}
+	if (hdr.len > BRIDGE_FRAME_MAX_LEN) {
+		LOG_WRN("oversized frame len=%u, closing", hdr.len);
+		mark_dead(fd);
+		return -EPROTO;
+	}
 
+	if (hdr.msg_type != MSG_FRAME) {
+		LOG_WRN("unexpected msg_type=%u, draining %u bytes",
+			hdr.msg_type, hdr.len);
+		if (hdr.len > 0) {
+			uint8_t scratch[BRIDGE_FRAME_MAX_LEN];
+			ret = recv_all(fd, scratch, hdr.len);
+			if (ret < 0) {
+				mark_dead(fd);
+				return ret;
+			}
+		}
+		return -EAGAIN;
+	}
 
-	// transmit packet over 802.15.4
-	return transmit_802_15_4(pkt);
+	pkt->len = hdr.len;
+	pkt->rssi = hdr.rssi;
+	pkt->lqi = hdr.lqi;
+	if (hdr.len > 0) {
+		ret = recv_all(fd, pkt->data, hdr.len);
+		if (ret < 0) {
+			LOG_DBG("recv body failed: %d, marking fd dead", ret);
+			mark_dead(fd);
+			return ret;
+		}
+	}
+
+	return 0;
 }

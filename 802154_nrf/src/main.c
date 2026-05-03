@@ -13,8 +13,6 @@
  * of radio_154_init() in step 3.
  */
 
-#include "radio_154.c"
-
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -22,6 +20,8 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/drivers/gpio.h>
+
+#include "radio_154.h"
 
 #define SW0_NODE	DT_ALIAS(sw0)
 #if !DT_NODE_HAS_STATUS_OKAY(SW0_NODE)

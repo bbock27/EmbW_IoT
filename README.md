@@ -65,4 +65,3 @@ We use four nRF54L15 boards, and two nRF7002 daughter boards.
 [00:00:09.083,830] <inf> tunnel: tunnel connection thread started
 [00:00:09.084,000] <inf> tunnel: dialing relay [Server IP:Port]
 ```
-*

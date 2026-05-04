@@ -37,11 +37,12 @@ We use four nRF54L15 boards, and two nRF7002 daughter boards.
 * Open "802154_nrf" as an application
 * In the build configuration, set "Board Target" to nrf54l15dk\nrf54l15\cpuapp"
 * Flash this application to both non-wifi boards.
+* set `src_extended_addr` and `dst_extended_addr`, for each of the non-wifi boards such that `src_extended_addr` is the same as `dst_extended_addr` for the other.
 #### In both applications
 * In both applications, there is a script called "radio_154.c"
-* Look for the line that says "nrf_802154_channel_set(CONFIG_BRIDGE_15_4_CHANNEL)"
-* By default, the channel is "CONFIG_BRIDGE_15_4_CHANNEL", but this can be changed to any applicable 802.15.4 channel
-* The boards that will be communicating over 802.15.4 must have the same channel set in this line, so if changing this channel make sure they match.
+* In prj.conf, set CONFIG_BRIDGE_15_4_CHANNEL for all the boards such that the two boards on the same network share a channel
+ * That is, each wifi-802.15.4 pair shares a channel, but the two pairs should have different channels. 
+* The boards that will be communicating over 802.15.4 must have the same channel
 ### Testing/Measurement
 * Open up the VCOM recieving the data from the board (we did so in VSCode)
 * For each board, there should be messages stating when the WiFi connection request was sent to the server, messages while it is scanning, and a message when it is connected to the bridge server.

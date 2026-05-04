@@ -71,6 +71,8 @@ void nrf_802154_received_raw(uint8_t *data, int8_t power, uint8_t lqi)
 
 	nrf_802154_buffer_free_raw(data);
 
+	LOG_INF("Received 802.15.4 packet");
+
 	if (k_msgq_put(&rx_msgq, &frame, K_NO_WAIT) == 0) {
 		LOG_DBG("Added message to the queue");
 	} else {
@@ -142,7 +144,6 @@ int transmit_802_15_4(const struct bridge_frame *pkt)
 		LOG_ERR("transmit_raw failed with error code: 0x%02x", tx_error);
 		return -EIO;
 	}
-    LOG_INF("transmit_raw call succeeded");
 
 	/* Wait for TX-done callback. Use a 1s timeout to avoid indefinite hang
 	 * if the callback is somehow lost. */
@@ -150,7 +151,7 @@ int transmit_802_15_4(const struct bridge_frame *pkt)
 		LOG_WRN("transmit_802_15_4: TX-done callback timeout");
 		return -ETIMEDOUT;
 	}
-    LOG_INF("TX succeeded");
+    LOG_INF("802.15.4 TX succeeded");
 
 
 	return 0;

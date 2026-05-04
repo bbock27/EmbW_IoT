@@ -110,6 +110,10 @@ int radio_154_init(void)
 
 static K_SEM_DEFINE(tx_done_sem, 0, 1);
 
+/* TX buffer: must be persistent (static) since nrf_802154_transmit_raw uses zero-copy.
+ * The driver stores a pointer to this buffer and transmits it asynchronously. */
+static uint8_t tx_buf[1 + BRIDGE_FRAME_MAX_LEN];
+
 void nrf_802154_transmitted_raw(uint8_t *p_frame,
 	const nrf_802154_transmit_done_metadata_t *p_metadata) {
 	ARG_UNUSED(p_frame);
@@ -124,8 +128,7 @@ int transmit_802_15_4(const struct bridge_frame *pkt)
 	}
 
 	/* nrf_802154_transmit_raw expects [PHR][PSDU] where PHR = length of PSDU.
-	 * bridge_frame.len is the PSDU length; construct the TX buffer. */
-	uint8_t tx_buf[1 + BRIDGE_FRAME_MAX_LEN];
+	 * bridge_frame.len is the PSDU length; populate the static TX buffer. */
 	tx_buf[0] = pkt->len;
 	memcpy(tx_buf + 1, pkt->data, pkt->len);
 
@@ -134,10 +137,12 @@ int transmit_802_15_4(const struct bridge_frame *pkt)
 		.cca = true
 	};
 
-	if (!nrf_802154_transmit_raw(tx_buf, &metadata)) {
-		LOG_ERR("transmit_raw failed (queue full?)");
+	nrf_802154_tx_error_t tx_error = nrf_802154_transmit_raw(tx_buf, &metadata);
+	if (tx_error != NRF_802154_TX_ERROR_NONE) {
+		LOG_ERR("transmit_raw failed with error code: 0x%02x", tx_error);
 		return -EIO;
 	}
+    LOG_INF("transmit_raw call succeeded");
 
 	/* Wait for TX-done callback. Use a 1s timeout to avoid indefinite hang
 	 * if the callback is somehow lost. */
@@ -145,6 +150,8 @@ int transmit_802_15_4(const struct bridge_frame *pkt)
 		LOG_WRN("transmit_802_15_4: TX-done callback timeout");
 		return -ETIMEDOUT;
 	}
+    LOG_INF("TX succeeded");
+
 
 	return 0;
 }

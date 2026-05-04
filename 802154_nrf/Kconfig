@@ -4,26 +4,6 @@ source "Kconfig.zephyr"
 
 menu "Bridge configuration"
 
-config BRIDGE_WIFI_START_STACK_SIZE
-	int "Stack size for the WiFi start thread"
-	default 4096
-	help
-	  Stack for the helper thread that drives wifi_connect() and waits
-	  on DHCP. Ported from the sta/ reference's STA_SAMPLE_START_WIFI_THREAD_STACK_SIZE.
-
-config BRIDGE_RELAY_HOST
-	string "IPv4 literal of the relay server"
-	default "192.168.2.1"
-	help
-	  The bridge opens an outbound TCP connection here on boot.
-	  Must be a dotted-quad IPv4 address; hostname resolution is
-	  intentionally not supported.
-
-config BRIDGE_RELAY_PORT
-	int "TCP port of the relay server"
-	default 47000
-	range 1 65535
-
 config BRIDGE_DIRECT_HOST
 	string "Optional IPv4 literal of the peer's direct (port-forwarded) address"
 	default ""
@@ -61,7 +41,7 @@ config BRIDGE_TUNNEL_ID
 
 config BRIDGE_15_4_CHANNEL
 	int "IEEE 802.15.4 channel"
-	default 25
+	default 23
 	range 11 26
 	help
 	  Pick one that does not overlap with the WiFi channel in use

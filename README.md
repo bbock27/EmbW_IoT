@@ -24,7 +24,11 @@ We use four nRF54L15 boards, and two nRF7002 daughter boards.
 * Build system and board configuration
 
 ## Reproducibility guide
-* picture of the setup:
+* Wiring for Daughter Boards:
+![daughter board wiring](daughterBoardWiringDiagram.png)
+* note that on the nrf-7002 EK boards being used, the CS pin is labeled SS instead.
+* make sure to also wire up V5V, GND, and VIO, too.
+
 * Toolchain installation guide: https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation/install_ncs.html
 #### For the wifi boards
 * Open "network_attached_nrf" as an application.
@@ -45,23 +49,9 @@ We use four nRF54L15 boards, and two nRF7002 daughter boards.
 ### Testing/Measurement
 * Open up the VCOM recieving the data from the board (we did so in VSCode)
 * For each board, there should be messages stating when the WiFi connection request was sent to the server, messages while it is scanning, and a message when it is connected to the bridge server.
-* The output should look something like this
+* The output on the endpoint boards should look something like this
 ```
-[00:00:08.191,508] <inf> main: State: COMPLETED
-[00:00:08.191,518] <inf> main: Mode: STATION
-[00:00:08.191,529] <inf> main: Link Mode: WIFI 6 (802.11ax/HE)
-[00:00:08.191,545] <inf> main: SSID: Ipsk
-[00:00:08.191,555] <inf> main: Band: 2.4GHz
-[00:00:08.191,559] <inf> main: Channel: 1
-[00:00:08.191,569] <inf> main: Security: WPA2-PSK
-[00:00:08.191,579] <inf> main: MFP: Optional
-[00:00:08.191,583] <inf> main: RSSI: -60
-[00:00:09.082,780] <inf> net_dhcpv4: Received: [Board IP]
-[00:00:09.082,928] <inf> main: DHCP bound: [Board IP]
-[00:00:09.082,951] <inf> bridge: bridge_start: relay=[Server IP:Port] tunnel_id='default' channel=[channel number] pan=0xbeef
-[00:00:09.083,007] <inf> radio_154: radio entered rx state
-[00:00:09.083,562] <inf> bridge: bridge: radio_to_tunnel_thread + tunnel_to_radio_thread up
-[00:00:09.083,830] <inf> tunnel: tunnel connection thread started
-[00:00:09.084,000] <inf> tunnel: dialing relay [Server IP:Port]
+[00:00:00.014,363] <inf> send: radio entered rx state
+[00:00:04.560,283] <inf> send: frame was transmitted!
+received:sending data from nrf 1
 ```
-*

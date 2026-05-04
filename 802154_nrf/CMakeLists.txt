@@ -5,5 +5,4 @@ project(main)
 
 target_sources(app PRIVATE
 	src/main.c
-	src/radio_154.c
 )

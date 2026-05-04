@@ -85,20 +85,20 @@ int radio_154_init(void)
 	LOG_DBG("channel: %u", nrf_802154_channel_get());
 
 	/* PAN ID, little-endian wire order. */
-	uint8_t pan_id[2] = {
-		CONFIG_BRIDGE_15_4_PAN_ID & 0xff,
-		(CONFIG_BRIDGE_15_4_PAN_ID >> 8) & 0xff,
-	};
-	nrf_802154_pan_id_set(pan_id);
+	// uint8_t pan_id[2] = {
+	// 	CONFIG_BRIDGE_15_4_PAN_ID & 0xff,
+	// 	(CONFIG_BRIDGE_15_4_PAN_ID >> 8) & 0xff,
+	// };
+	// nrf_802154_pan_id_set(pan_id);
 
 	/* Enable promiscuous mode to capture all frames on the channel,
 	 * regardless of destination address or PAN ID. */
 	nrf_802154_promiscuous_set(true);
 
-	uint8_t extended_addr[8] = {
-		0x50, 0xbe, 0xca, 0xc3, 0x3c, 0x36, 0xce, 0xf4,
-	};
-	nrf_802154_extended_address_set(extended_addr);
+	// uint8_t extended_addr[8] = {
+	// 	0x50, 0xbe, 0xca, 0xc3, 0x3c, 0x36, 0xce, 0xf4,
+	// };
+	// nrf_802154_extended_address_set(extended_addr);
 
 	if (nrf_802154_receive()) {
 		LOG_INF("radio entered rx state");

@@ -52,7 +52,7 @@ config BRIDGE_DIRECT_PROBE_PERIOD_S
 
 config BRIDGE_15_4_CHANNEL
 	int "IEEE 802.15.4 channel"
-	default 25
+	default 17
 	range 11 26
 	help
 	  Pick one that does not overlap with the WiFi channel in use

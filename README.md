@@ -32,12 +32,32 @@ We use four nRF54L15 boards, and two nRF7002 daughter boards.
 * make sure to also wire up V5V, GND, and VIO, too.
 
 * Toolchain installation guide: https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/installation/install_ncs.html
+#### Relay Server
+
+
+Options:
+
+| Flag       | Default     | Notes |
+| ---------- | ----------- | ----- |
+| `--host`   | `0.0.0.0`   | bind address |
+| `--port`   | `47000`     | bind port; matches `CONFIG_BRIDGE_RELAY_PORT` |
+| `-v`       | off         | DEBUG logging |
+Example:
+```
+python3 relay.py --host 192.168.0.123 --port 47000
+```
+
+
+Requires Python 3.10+. No third-party dependencies — stdlib only.
+
+
 #### For the wifi boards
 * Open "network_attached_nrf" as an application.
 * In "network_attached_nrf\prj.conf" set "CONFIG_BRIDGE_RELAY_HOST" to be the ip address of the server hosting the bridge.
 * Build instructions:
   *   Set "Board Target" to nrf54l15dk\nrf54l15\cpuapp"
   *   Add an extra Cmake argument. The argument should be "-DSHIELD=nrf7002eb2"
+  *   Add the device tree overlay in the boards directory
   * Flash this application to both wifi boards
 #### For the non-wifi boards (802.15.4 connection only)
 * Open "802154_nrf" as an application
@@ -47,8 +67,9 @@ We use four nRF54L15 boards, and two nRF7002 daughter boards.
 #### In both applications
 * In both applications, there is a script called "radio_154.c"
 * In prj.conf, set CONFIG_BRIDGE_15_4_CHANNEL for all the boards such that the two boards on the same network share a channel
- * That is, each wifi-802.15.4 pair shares a channel, but the two pairs should have different channels. 
-* The boards that will be communicating over 802.15.4 must have the same channel
+ * That is, each wifi<->802.15.4 pair shares a channel, but the two pairs can have different channels.
+* In prj.conf, set CONFIG_BRIDGE_RELAY_HOST and CONFIG_BRIDGE_RELAY_PORT to the ip and port of the relay server.
+* The boards that will be communicating directly over 802.15.4 must have the same channel
 ### Testing/Measurement
 * Open up the VCOM recieving the data from the board (we did so in VSCode)
 * For each board, there should be messages stating when the WiFi connection request was sent to the server, messages while it is scanning, and a message when it is connected to the bridge server.
